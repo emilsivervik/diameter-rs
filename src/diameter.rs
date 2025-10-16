@@ -143,7 +143,7 @@ impl DiameterMessage {
 
     /// Adds an AVP to the message.
     pub fn add(&mut self, avp: Avp) {
-        self.header.length += avp.get_length() + avp.get_padding() as u32;
+        self.header.length += avp.get_length();
         self.avps.push(avp);
     }
 

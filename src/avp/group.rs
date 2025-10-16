@@ -65,10 +65,7 @@ impl Grouped {
     }
 
     pub fn length(&self) -> u32 {
-        self.avps
-            .iter()
-            .map(|avp| avp.get_length() + avp.get_padding() as u32)
-            .sum()
+        self.avps.iter().map(|avp| avp.get_length()).sum()
     }
 
     pub fn fmt(&self, f: &mut std::fmt::Formatter<'_>, depth: usize) -> std::fmt::Result {
