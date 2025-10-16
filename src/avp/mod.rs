@@ -377,23 +377,25 @@ impl Avp {
         dict: Arc<Dictionary>,
     ) -> Avp {
         let header_length = if vendor_id.is_some() { 12 } else { 8 };
-        let padding = Avp::pad_to_32_bits(value.length());
+        let unpadded_len = header_length + value.length();
+        let padding = Avp::pad_to_32_bits(unpadded_len);
+
         let header = AvpHeader {
             code,
             flags: AvpFlags {
-                vendor: if vendor_id.is_some() { true } else { false },
+                vendor: vendor_id.is_some(),
                 mandatory: (flags & flags::M) != 0,
                 private: (flags & flags::P) != 0,
             },
-            length: header_length + value.length(),
+            length: unpadded_len + padding as u32,
             vendor_id,
         };
-        return Avp {
+        Avp {
             header,
             value,
             padding,
             dict,
-        };
+        }
     }
 
     pub fn from_name(avp_name: &str, value: AvpValue, dict: Arc<Dictionary>) -> Result<Avp> {
@@ -778,5 +780,39 @@ mod tests {
         assert_eq!(avp.get_flags().vendor, false);
         assert_eq!(avp.get_vendor_id(), None);
         assert_eq!(avp.get_utf8string().unwrap().value(), "session-id");
+    }
+
+    #[test]
+    fn test_avp_encode_writes_correct_padded_length_in_header() {
+        let dict = Dictionary::new(&[&dictionary::DEFAULT_DICT_XML]);
+        let dict = Arc::new(dict);
+
+        let avp = Avp::new(
+            264, // Origin-Host
+            None,
+            flags::M,
+            UTF8String::new("a").into(),
+            Arc::clone(&dict),
+        );
+
+        let mut buffer = Vec::new();
+        avp.encode_to(&mut buffer).unwrap();
+
+        let length_from_buffer = u32::from_be_bytes([0, buffer[5], buffer[6], buffer[7]]);
+        assert_eq!(
+            length_from_buffer, 12,
+            "The length field in the AVP header bytes must be the padded length (12)"
+        );
+
+        assert_eq!(
+            buffer.len(),
+            12,
+            "The total size of the encoded buffer should be 12 bytes"
+        );
+        assert_eq!(
+            &buffer[9..],
+            &[0x00, 0x00, 0x00],
+            "The last 3 bytes should be null padding"
+        );
     }
 }
